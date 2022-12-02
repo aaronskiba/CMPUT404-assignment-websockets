@@ -26,15 +26,7 @@ app = Flask(__name__)
 sockets = Sockets(app)
 app.debug = True
 
-clients = list()
-
-def send_all(msg):
-    for client in clients:
-        client.put( msg )
-
-def send_all_json(obj):
-    send_all( json.dumps(obj) )
-
+# stolen from 404 notes
 class Client:
     def __init__(self):
         self.queue = queue.Queue()
@@ -44,6 +36,7 @@ class Client:
 
     def get(self):
         return self.queue.get()
+
 
 class World:
     def __init__(self):
@@ -61,6 +54,7 @@ class World:
         self.update_listeners( entity )
 
     def set(self, entity, data):
+        """enitity is key, data is value"""
         self.space[entity] = data
         self.update_listeners( entity )
 
@@ -78,13 +72,26 @@ class World:
     def world(self):
         return self.space
 
-myWorld = World()        
+
+myWorld = World()   
+clients = list()
+
+def send_all(msg):
+    for client in clients:
+        client.put(msg)
+
+def send_all_json(obj):
+    send_all(json.dumps(obj))
+
 
 def set_listener( entity, data ):
     ''' do something with the update ! '''
+    msg = json.dumps({entity: data})
+    send_all(msg)
 
-myWorld.add_set_listener( set_listener )
-        
+myWorld.add_set_listener(set_listener)
+
+
 @app.route('/')
 def hello():
     '''Return something coherent here.. perhaps redirect to /static/index.html '''
@@ -93,17 +100,14 @@ def hello():
 def read_ws(ws,client):
     '''A greenlet function that reads from the websocket and updates the world'''
     # XXX: TODO IMPLEMENT ME
-    try:
-        while True:
-            msg = ws.receive()
-            print("WS RECV: %s" % msg)
-            if (msg is not None):
-                packet = json.loads(msg)
-                send_all_json( packet )
-            else:
-                break
-    except:
-        '''Done'''
+
+    data = ws.receive()
+    while data:
+        msg = json.loads(data)
+        for k, v in msg.items():
+            myWorld.set(k, v)
+        data = ws.receive() # if data, then repeat
+
 
 @sockets.route('/subscribe')
 def subscribe_socket(ws):
@@ -114,7 +118,6 @@ def subscribe_socket(ws):
     g = gevent.spawn( read_ws, ws, client )    
     try:
         while True:
-            # block here
             msg = client.get()
             ws.send(msg)
     except Exception as e:# WebSocketError as e:
@@ -141,8 +144,7 @@ def update(entity):
     '''update the entities via this interface'''
     data = flask_post_json()
     # update the entity
-    for k, v in data.items():
-        myWorld.update(entity,k,v)
+    myWorld.set(entity,data)
     # get the updated entity
     entity = myWorld.get(entity)
     json_entity = json.dumps(entity) # Serialize obj to a JSON formatted str.
@@ -169,7 +171,6 @@ def clear():
     myWorld.clear()
     json_world = json.dumps(dict())
     return Response(json_world,status=200)
-
 
 
 if __name__ == "__main__":
