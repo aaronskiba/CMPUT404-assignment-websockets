@@ -26,7 +26,7 @@ app = Flask(__name__)
 sockets = Sockets(app)
 app.debug = True
 
-# stolen from 404 notes
+# https://github.com/uofa-cmput404/cmput404-slides/tree/master/examples/WebSocketsExamples
 class Client:
     def __init__(self):
         self.queue = queue.Queue()
