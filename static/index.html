@@ -36,6 +36,16 @@ var H = canvas.height = window.innerHeight-50;
 var wscounter = 0;
 var socket;
 
+var worldURI = window.location.href.replace(window.location.pathname,`/world`)
+var isPartyMode = false // initialize to false
+
+function setIsPartyMode() {
+    isPartyMode = !isPartyMode
+    if (isPartyMode) {
+        drawNextFrame()
+    }
+}
+
 function debug(str) {
     var debugDiv = document.getElementById('debug');
     debugDiv.innerHTML = "" + str;
@@ -47,19 +57,29 @@ world = {};
 //XXX: TODO Make this prettier!
 function drawCircle(context,entity) {
     with(context) {
-        beginPath();                
+        beginPath();              
         lineWidth = 3;
         var x = entity["x"];
         var y = entity["y"];
-        //moveTo(x,y);
-        fillStyle = entity["colour"];
-        strokeStyle = fillStyle;
-        arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);  
-        stroke();                                
+        // moveTo(x,y);
+        fillStyle = entity["colour"]
+        strokeStyle = fillStyle
+        arc(x, y, (entity["radius"])?entity["radius"]:50, 0, 2.0 * Math.PI, false);
+        // stroke vs fill depends on radius
+        if (entity["radius"] > 30) {
+            stroke();
+        }
+        else {
+            fill();
+        }                         
     }
 }
 
 function prepEntity(entity) {
+    if (isPartyMode) {
+        // creates strobe effect for party mode
+        entity["colour"] = getRandomColour()
+    }
     if (!entity["colour"]) {
         entity["colour"] = "#FF0000";
     }
@@ -99,6 +119,7 @@ function drawFrame() {
     if (drawNext) {
         renderFrame();
         drawNext = false;
+        drawNext = isPartyMode
     }
 }
 
@@ -125,7 +146,13 @@ function addEntity(entity, data) {
     world[entity] = data;
     drawNextFrame(); // (but should we?)
     //XXX: Send a XHTML Request that updates the entity you just modified!
+    // window.location.href returns the URL of the current page
+    // window.location.pathname returns the pathname of the current page
+    var uri = window.location.href.replace(window.location.pathname,`/entity/${entity}`)
+    sendJSONXMLHTTPRequest(uri,data,function(json) {
+    console.log(json)})
 }
+
 var counter = 0;
 function addEntityWithoutName(data) {
     var name = "X"+(counter++)%100;
@@ -231,16 +258,16 @@ mouse = (function() {
 // Add the application specific mouse listeners!
 //XXX: TODO Make these prettier!
 mouse.mousedowners.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'blue'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getRandomColour(),'radius':getRandomInt()}); // on mouse push
 });
 
 mouse.mouseuppers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'red'});
+    addEntityWithoutName({'x':x,'y':y,'colour':getRandomColour(),'radius':getRandomInt()}); // on mouse release
 });
 
 mouse.mousedraggers.push(function(x,y,clicked,e) {
-    addEntityWithoutName({'x':x,'y':y,'colour':'green',
-                          'radius':10});
+    addEntityWithoutName({'x':x,'y':y,'colour':getRandomColour(), // on mouse drag
+                          'radius':getRandomInt()});
 });
 
 
@@ -271,6 +298,21 @@ function wsSetup() {
 wsSetup();
 
 
+function getRandomColour() {
+    // https://css-tricks.com/snippets/javascript/random-hex-color/
+    var randomColor = Math.floor(Math.random()*16777215).toString(16);
+    return `#${randomColor}`
+}
+
+function getRandomInt() {
+    let x = Math.floor(Math.random() * 300);
+    if (x < 299) {
+        // return small circle
+        return Math.floor(Math.random() * 10);}
+    // else return potentially big circle
+    return Math.floor(Math.random() * 400);
+    
+}
 
 
 // 30 frames per second
